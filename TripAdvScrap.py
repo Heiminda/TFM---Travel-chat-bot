@@ -209,6 +209,8 @@ def n_review_pages(url):
     result = requests.get(url).text
     parser = html.fromstring(result)
     npages = parser.xpath(XPATH_N_HOTEL_PAGES)
+    if npages == []:
+        npages = [1.0]
     return int(npages[-1])
 
 def hotel_url_pagination(url_from_autocomplete):
