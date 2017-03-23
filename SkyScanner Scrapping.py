@@ -284,7 +284,7 @@ def follow_deeplinks(fetcher, raw_data, origin, destination, ts, now, apikey, pr
         concat_id = {'_id.' + key: value for key, value in flight_data['_id'].iteritems() if key != 'date' and key != 'time'}
 
         res = fetcher.itineraries.find_one(concat_id)
-        follow_carriers = res is not None
+        follow_carriers = res is None
         logger.info("[EARLY_QUIT] Follow carriers for flight: %r" % (follow_carriers,))
 
     if follow_carriers:
@@ -420,10 +420,8 @@ class Fetcher(object):
 
         futures = []
         for day_offset in range(0, self.accumulate + 1):
-            logger.info("===== DAY -%d =====" % (day_offset,))
             ts = self.now + self.LOOK_AHEAD - day_offset * Fetcher.DAY
-         
-            self.fetch_executor.submit(lambda d: logger.info("===== DAY -%d =====" % (d,), day_offset))
+            self.fetch_executor.submit(lambda d: logger.info("===== DOING DAY -%d =====" % (d,)), day_offset)
 
             for origin, destination in self.flight_itineraries:
                 f = self.fetch_executor.submit(self.push_fetch_save, origin, destination, ts, self.now)
@@ -575,7 +573,7 @@ if __name__ == '__main__':
     )
 
     itineraries = [('BCN', dest) for dest in destinations]
-    fetcher = Fetcher(90, itineraries, start_time=1488249243, override_waitfor='2017-03-23-14') #14
+    fetcher = Fetcher(90, itineraries, start_time=1488249243, override_waitfor='2017-03-23-17') #14
     #fetcher = Fetcher(90, itineraries)
 
 #    filename, api = fetch_and_save('BCN', 'PMI', '2017-03-24', get_key())
