@@ -19,6 +19,7 @@ import email.utils
 from email.mime.text import MIMEText
 from itertools import cycle
 from Queue import Queue
+from copy import deepcopy
 
 COMMON_HTTP_ERRORS = [403, 404, 407, 410, 502, 598]
 MULTITHREADING = True
@@ -95,7 +96,7 @@ def do_request_imp(request_type, url, data, apikey, proxy):
         url += '?apikey=' + apikey
 
     try:
-        r = get_method(request_type)(url, data=payload, headers=headers, proxies={'http': proxy, 'https': proxy}, timeout=5)
+        r = get_method(request_type)(url, data=payload, headers=headers, proxies={'http': proxy, 'https': proxy}, timeout=10)
     except Exception as e:
         return Struct(status_code=598, exception=e)
 
@@ -143,8 +144,8 @@ def keep_polling(func, tries, fail_wait, apikey, proxy, stop_signal=None):
                         return -1
 
                 if pending_session > 0:
-                    logger.info("\t[WAIT] Waiting %ds for session to be created" % (pending_session * 2 + 1))
-                    time.sleep((pending_session - 1) * 2 + 1) # Let session be created
+                    logger.info("\t[WAIT] Waiting 1s for session to be created")
+                    time.sleep(1) # Let session be created
 
                 r_poll = parse_request(r, apikey, proxy)
                 pending_session += 1
@@ -158,7 +159,7 @@ def keep_polling(func, tries, fail_wait, apikey, proxy, stop_signal=None):
 
             current_try += 1
             if current_try < tries:
-                logger.error("\t[FAIL:%d] Reattempting in %d seconds (reason: %d, apikey: %s)" % (current_try, fail_wait, r_poll.status_code, apikey))
+                #logger.error("\t[FAIL:%d] Reattempting in %d seconds (reason: %d, apikey: %s)" % (current_try, fail_wait, r_poll.status_code, apikey))
      
                 if r_poll.status_code == 429: # Too many requests
                     time.sleep(fail_wait)
@@ -182,7 +183,7 @@ def parse_date(fmt, date):
     ts = time.mktime(datetime.datetime.strptime(date, fmt).timetuple())
     return ts
 
-def fetch_and_save(origin, destination, when, apikey, proxy, tries=7, fail_wait=10):
+def fetch_and_save(origin, destination, when, apikey, proxy, tries=10, fail_wait=1):
     logger.info("[DO] %s to %s on %s" % (origin, destination, when))
 
     date = get_date('%Y-%m-%d-%H')
@@ -211,13 +212,13 @@ def fetch_booking(uri, body, apikey, proxy):
 def follow_deeplinks(fetcher, raw_data, origin, destination, ts, now, apikey, proxy):
     when = get_date('%Y-%m-%d-%H', ts)
     deep_executor = ThreadPoolExecutor(max_workers=20)
-    logger.info("[FOLLOW] Flight from %s to %s on %s" % (origin, destination, when))
+    logger.error("[FOLLOW] Flight from %s to %s on %s (apikey=%s)" % (origin, destination, when, apikey))
 
     try:
         data = json.loads(raw_data)
     except:
         logger.error("[FATAL] Could not parse JSON, from %s to %s on %s" % (origin, destination, when))
-        notify_mail("[SkyScanner] Could not parse JSON, from %s to %s on %s" % (origin, destination, when), data)
+        notify_mail("[SkyScanner] Could not parse JSON, from %s to %s on %s" % (origin, destination, when), raw_data)
         fetcher.push_fetch_save(origin, destination, ts, now, apikey=apikey)
         return
 
@@ -229,12 +230,17 @@ def follow_deeplinks(fetcher, raw_data, origin, destination, ts, now, apikey, pr
         'origin': origin, 
         'destination': destination
     }
-    flight_data = data
+    flight_data = deepcopy(data)
 
     if WITH_MONGO:
-        if fetcher.itineraries.find_one(flight_data) is not None:
+        concat_id = {'_id.' + key: value for key, value in flight_data['_id'].iteritems()}
+   
+        res = fetcher.itineraries.find_one(concat_id)
+        if res is not None:
             logger.info("[DONE] Flight %r already exists" % (data['_id'],))
             return
+
+    
 
     def fetch_itinerary(itinerary, futures, retry_lock, stop_signal):
         if stop_signal.isSet():
@@ -249,11 +255,11 @@ def follow_deeplinks(fetcher, raw_data, origin, destination, ts, now, apikey, pr
             uri = 'http://partners.api.skyscanner.net' + details[u'Uri']
             body_details = details[u'Body']
 
-            itinerary_data = keep_polling(fetch_booking, 7, 10, apikey, proxy, stop_signal)(uri, body_details)
+            itinerary_data = keep_polling(fetch_booking, 10, 1, apikey, proxy, stop_signal)(uri, body_details)
             if type(itinerary_data) == int:
                 if itinerary_data != -1:
                     logger.error("[ERROR:%d] Could not follow deeplink (Apikey: %s)" % (itinerary_data, apikey))
-                    if itinerary_data >= 400 and itinerary_data < 600 and retry_lock.acquire(False):
+                    if (itinerary_data == 304 or (itinerary_data >= 400 and itinerary_data < 600)) and retry_lock.acquire(False):
                         stop_signal.set()
                         fetcher.push_fetch_save(origin, destination, ts, now, apikey=apikey)
                         for f in futures:
@@ -273,21 +279,30 @@ def follow_deeplinks(fetcher, raw_data, origin, destination, ts, now, apikey, pr
             logger.info("[DONE] Already existing")
 
 
-    futures = []
-    retry_lock = threading.Lock()
-    stop_signal = threading.Event()
-    for itinerary in data[u'Itineraries']:
-        deep_executor.submit(fetch_itinerary, itinerary, futures, retry_lock, stop_signal)
+    follow_carriers = True    
+    if WITH_MONGO:
+        concat_id = {'_id.' + key: value for key, value in flight_data['_id'].iteritems() if key != 'date' and key != 'time'}
 
-    deep_executor.shutdown(True)
+        res = fetcher.itineraries.find_one(concat_id)
+        follow_carriers = res is not None
+        logger.info("[EARLY_QUIT] Follow carriers for flight: %r" % (follow_carriers,))
 
-    if retry_lock.acquire(False) and not stop_signal.isSet():
-        try:
-            fetcher.itineraries.insert_one(flight_data)
-            logger.info("[INSERTED] Flight %r" % (flight_data['_id']))
-        except Exception as e:
-            logger.info("[UNK] Flight should not be already inserted")
-            notify_mail("[SkyScanner] Already existing flight" + str(flight_data['_id']), str(e) + "\n\n" + raw_data)
+    if follow_carriers:
+        futures = []
+        retry_lock = threading.Lock()
+        stop_signal = threading.Event()
+        for itinerary in data[u'Itineraries']:
+            deep_executor.submit(fetch_itinerary, itinerary, futures, retry_lock, stop_signal)
+
+        deep_executor.shutdown(True)
+
+        if retry_lock.acquire(False) and not stop_signal.isSet():
+            try:
+                fetcher.itineraries.insert_one(flight_data)
+                logger.info("[INSERTED] Flight %r" % (flight_data['_id']))
+            except Exception as e:
+                logger.error("[UNK] Flight %s to %s on %s should not be already inserted" % (origin, destination, when))
+                notify_mail("[SkyScanner] Already existing flight" + str(flight_data['_id']), str(e) + "\n\n" + raw_data)
 
     logger.info("[REACHED] Saved all carriers from %s to %s on %s" % (when, origin, destination ))
 
@@ -318,7 +333,7 @@ def wait_for(date, fmt, fetcher, wait=1):
         wait_for.thread = threading.Thread(target=worker, args=(fetcher,))
         wait_for.thread.stop = False
 
-    logger.info('\n[SCHEDULE] For %s at %s' % (date, get_date(fmt)))
+    logger.fatal('\n[SCHEDULE] For %s at %s' % (date, get_date(fmt)))
     wait_for.thread.date = date
     wait_for.thread.fmt = fmt
     wait_for.thread.has_date = True
@@ -357,7 +372,7 @@ class Fetcher(object):
         while get_date('%Y-%m-%d', self.now) != get_date('%Y-%m-%d', current_date):
             self.accumulate = min(self.accumulate + 1, self.look_ahead_days)
             self.now += Fetcher.DAY
-            logger.info('[INIT] Accumulate day')
+            logger.fatal('[INIT] Accumulate day')
 
         self.target = get_date('%Y-%m-%d', self.now + self.LOOK_AHEAD)
        
@@ -379,7 +394,7 @@ class Fetcher(object):
             if not type(data) == int:
                 follow_deeplinks(fetcher, data, origin, destination, ts, now, apikey, proxy)
             else:
-                if data >= 400 and data < 600:
+                if data == 304 or (data >= 400 and data < 600):
                     # Proxy error, simply retry
                     self.push_fetch_save(origin, destination, ts, now, apikey=apikey)
                 else:
@@ -397,8 +412,8 @@ class Fetcher(object):
             return
 
         self.now = int(time.time())
-        logger.info("-------------------------------------")
-        logger.info("[UPDATE] Fetching day %d (accumulate: %d) - %d" % ((self.now + Fetcher.DAY - self.start) / Fetcher.DAY,
+        logger.fatal("-------------------------------------")
+        logger.fatal("[UPDATE] Fetching day %d (accumulate: %d) - %d" % ((self.now + Fetcher.DAY - self.start) / Fetcher.DAY,
                                                                          self.accumulate, self.now))
 
         notify_mail('[SkyScanner] Scrapping START - ' + get_date('%Y-%m-%d %H:%M', self.now), ':D')
@@ -407,11 +422,19 @@ class Fetcher(object):
         for day_offset in range(0, self.accumulate + 1):
             logger.info("===== DAY -%d =====" % (day_offset,))
             ts = self.now + self.LOOK_AHEAD - day_offset * Fetcher.DAY
+         
+            self.fetch_executor.submit(lambda d: logger.info("===== DAY -%d =====" % (d,), day_offset))
+
             for origin, destination in self.flight_itineraries:
                 f = self.fetch_executor.submit(self.push_fetch_save, origin, destination, ts, self.now)
                 futures.append(f)
 
-        self.now += 6 * Fetcher.HOUR
+        # Join
+        results = [f.result() for f in futures]
+        logger.fatal('[END] Done scrapping for today! Next in: %s (accumulate: %d)' % (get_date(fmt, self.now), self.accumulate))
+
+        while self.now < int(time.time()):
+            self.now += 6 * Fetcher.HOUR
 
         if get_date('%Y-%m-%d', self.now + self.LOOK_AHEAD) != self.target:
             self.accumulate = min(self.accumulate + 1, self.look_ahead_days)
@@ -420,15 +443,10 @@ class Fetcher(object):
         fmt = '%Y-%m-%d-%H'
         wait_for(get_date(fmt, self.now), fmt, self)
 
-        # Join
-        results = [f.result() for f in futures]
-        logger.info('[END] Done scrapping for today! Next in: %s (accumulate: %d)' % (get_date(fmt, self.now), self.accumulate))
-
         notify_mail('[SkyScanner] Scrapping ENDED - ' + get_date('%Y-%m-%d %H:%M', time.time()), ':D')
 
 
 # In[ ]:
-
 if __name__ == '__main__':
     http_pool = ProcessPoolExecutor(max_workers=5)
 
@@ -439,7 +457,7 @@ if __name__ == '__main__':
 
 
     logger = logging.getLogger('SkyScanner')
-    add_handler(logger, logging.FileHandler('skyscranner.log', 'a'))
+    add_handler(logger, logging.FileHandler('skyscanner.log', 'a'))
 
     if not MULTITHREADING:
         add_handler(logger, logging.StreamHandler())
@@ -487,44 +505,44 @@ if __name__ == '__main__':
 
 
     proxies_lock = threading.Lock()
-    proxies_list = cycle([
-        "35.185.60.220:80", "198.50.237.204:8080", "177.54.146.249:8080",
-        "51.15.143.172:8000", "103.14.8.239:8080", "144.217.156.166:8080",
-        "200.229.193.147:3128", "5.196.67.182:3128", "104.196.6.191:80",
-        "36.73.167.246:81", "93.188.167.171:8080", "201.16.147.193:80",
-        "45.55.15.48:3128", "158.69.193.152:1080", "158.69.70.238:8080",
-        "158.69.82.180:8080", "94.177.198.7:3128", "104.196.186.68:80",
-        "200.229.202.139:8080", "62.151.183.58:80"])
+    proxies_list = []
 
     def test_proxy(proxy):
         def _inner():
             try:
                 headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
-                r = requests.get('http://proxy.tekbreak.com/best/json', headers=headers, proxies={'http': proxy, 'https': proxy}, timeout=5)
+                r = requests.get('http://ip.jsontest.com/', headers=headers, proxies={'http': proxy, 'https': proxy}, timeout=10)
                 obj = json.loads(r.text)
                 return r.status_code == 200, r.status_code
             except Exception as e:
-                return False, e
+                return False, type(e)
+
         r = _inner()
         #logger.info("[PROXY] %s: %r" % (proxy, r))
         return r[0]
 
-    def reload_proxies():
+    def reload_proxies(start=0, acc=0):
         global proxies_list
         global proxies_lock
         try:
-            proxy_req = requests.get('http://proxy.tekbreak.com/100/json')
+            proxy_req = requests.get('https://freevpn.ninja/free-proxy/json')
             proxy_json = json.loads(proxy_req.text)
-            proxies_list_tmp = [p['ip'] + ':' + p['port'] for p in proxy_json]
-            logger.info("[PROXIES] Original size %d" % (len(proxies_list_tmp),))
+            proxies_list_tmp = [p['proxy'] for p in proxy_json][start:start+20]
+            #logger.info("[PROXIES] Original size %d" % (len(proxies_list_tmp),))
             proxies_list_tmp = [p for p in proxies_list_tmp if test_proxy(p)] # Too slow... :(
-            logger.info("[PROXIES] Cleaned size %d" % (len(proxies_list_tmp),))
+            #logger.info("[PROXIES] Cleaned size %d" % (len(proxies_list_tmp),))
 
-            proxies_lock.acquire()
-            proxies_list = cycle(proxies_list_tmp)
-            proxies_lock.release()
+	    if len(proxies_list_tmp) + acc < 10:
+                proxies_list_tmp += reload_proxies(start + 20, acc + len(proxies_list_tmp))
+
+            if len(proxies_list_tmp) > 0 and start == 0:
+                proxies_lock.acquire()
+                proxies_list = cycle(proxies_list_tmp)
+                proxies_lock.release()
         except Exception as e:
-            pass
+            proxies_list_tmp = []
+
+        return proxies_list_tmp
     
     def next_proxy():
         global proxies_lock
@@ -533,6 +551,11 @@ if __name__ == '__main__':
         proxy = next(proxies_list)
         proxies_lock.release()
         return proxy
+
+    logger.info("[PROXIES] Loading initial list of proxies")
+    proxies = reload_proxies()
+    logger.info("[PROXIES] Initial size: %d" % (len(proxies),))
+    
 
     destinations = (
         'LCY', 'LHR', 'LGW', 'LTN', 'SEN', 'STN', # LONDRES
@@ -552,7 +575,7 @@ if __name__ == '__main__':
     )
 
     itineraries = [('BCN', dest) for dest in destinations]
-    fetcher = Fetcher(90, itineraries, start_time=1488249243, override_waitfor='2017-03-07-17') #14
+    fetcher = Fetcher(90, itineraries, start_time=1488249243, override_waitfor='2017-03-23-14') #14
     #fetcher = Fetcher(90, itineraries)
 
 #    filename, api = fetch_and_save('BCN', 'PMI', '2017-03-24', get_key())
