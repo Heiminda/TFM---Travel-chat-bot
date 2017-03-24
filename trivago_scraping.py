@@ -23,7 +23,6 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-
 class City:
     def __init__(self, name, path_id, request_id, geocode_lat, geocode_lng, cpt = None):
         self.name = name
@@ -53,6 +52,7 @@ class City:
 
     def get_geocode_lng(self):
         return self.geocode_lng
+
 # --------------------------------------
 #   WEB HANDLERS
 # --------------------------------------
@@ -359,10 +359,12 @@ def scrape(city, room_type, include_all):
     url = "https://www.trivago.es/"
 
     # Temporal Storage
-    offset_page_index = 0 # search_page reminder
-    #data_page_reminder  = open("trivagoReminder_%s_%s_%s_%s_%s.txt" % (city.get_name(), city.get_pathid(), room_type, include_all, datetime.now().strftime("%Y-%m-%d_%H:%M:%S")), "w")
+    # offset_page_index = 0 # search_page reminder
+    # data_page_reminder  = open("trivagoReminder_%s_%s_%s_%s_%s.txt" % (city.get_name(), city.get_pathid(), room_type, include_all, datetime.now().strftime("%Y-%m-%d_%H:%M:%S")), "w")
+
     if not os.path.exists("trivago_data/%s" % city.get_name()):
         os.makedirs("trivago_data/%s" % city.get_name())
+
     data_file = open("trivago_data/%s/trivago_%s_%s_%s_%s_%s.txt" % (city.get_name(), city.get_name(), city.get_pathid(), room_type, include_all, datetime.now().strftime("%Y-%m-%d_%H:%M:%S")), "w")
 
     print bcolors.OKBLUE + "INITIALIZING SCRAPER"
