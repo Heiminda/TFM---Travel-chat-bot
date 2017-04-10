@@ -11,6 +11,7 @@ import random
 from interruptingcow import timeout
 from datetime import datetime
 import os
+import cookielib
 
 # printing in colors terminal
 class bcolors:
@@ -70,7 +71,7 @@ def test_proxy(proxies, url):
                 while True:
                     proxy = random.choice(proxies)
                     r = requests.get(url, proxies=proxy, headers=headers)
-                    if r.status_code != 503: # successful
+                    if r.status_code == requests.codes.ok: # successful
                         success = True
                         break
         except (RuntimeError,Exception) as e:
@@ -86,6 +87,8 @@ def get_proxies(path):
     return proxies
 
 def parse_trivago_cookies(r):
+    print r.cookies
+    print r.headers['Set-Cookie']
     cookies = Cookie.SimpleCookie()
     cookies.load(r.headers['Set-Cookie'])
     return cookies
@@ -97,7 +100,7 @@ def get_trivago_cookies():
         'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36'
     }
 
-    r = requests.get("https://www.trivago.com", headers=headers)
+    r = requests.get("https://www.trivago.es", headers=headers)
     return parse_trivago_cookies(r)
 
 def do_trivago_request(url, params, cookies, proxy_list, proxy, change_proxy):
@@ -128,8 +131,7 @@ def do_trivago_request_sess(url, session, params, proxy_list, proxy, change_prox
     if change_proxy:
         proxy = test_proxy(proxy_list, "http://www.apple.com/es/")
 
-    r = requests.get(url, params=params, headers=headers, proxies = proxy)
-
+    r = requests.get(url, params=params, headers=headers, proxies=proxy)
     if r.status_code == 200 and len(r.text) > 10:
         return r, proxy
     else:
@@ -356,7 +358,7 @@ def define_params(path_id, room_type, offset, include_all, geocode_lat, geocode_
 
 def scrape(city, room_type, include_all):
 
-    url = "https://www.trivago.es/"
+    url = "https://www.trivago.com/"
 
     # Temporal Storage
     # offset_page_index = 0 # search_page reminder
@@ -385,55 +387,55 @@ def scrape(city, room_type, include_all):
 
     # test and get workable proxy
     print "\tTesting and getting workable proxy..."
-    proxy_list = get_proxies("proxies.json")
+    proxy_list = get_proxies("proxies_v2.json")
     proxy = test_proxy(proxy_list, "http://www.apple.com/es/")
     print bcolors.OKGREEN +"\tGot proxy." + bcolors.ENDC
     proxy_count = 1
 
     print "\tStarting to scrape."
 
-    try:
-        for search_page in offsets:
-            print "\t\tSearch page:", search_page / 25 , "."
+    # try:
+    for search_page in offsets:
+        print "\t\tSearch page:", search_page / 25 , "."
 
-            if city.get_cpt() is not None:
-                params = define_params(city.get_pathid(), room_type, search_page, include_all, city.get_geocode_lat(), city.get_geocode_lng(), city.get_cpt())
-            else:
-                params = define_params(city.get_pathid(), room_type, search_page, include_all, city.get_geocode_lat(), city.get_geocode_lng(), city.get_cpt())
+        if city.get_cpt() is not None:
+            params = define_params(city.get_pathid(), room_type, search_page, include_all, city.get_geocode_lat(), city.get_geocode_lng(), city.get_cpt())
+        else:
+            params = define_params(city.get_pathid(), room_type, search_page, include_all, city.get_geocode_lat(), city.get_geocode_lng(), city.get_cpt())
 
-            print "\t\tDoing request..."
-            # get trivago response
-            response = poll_until_not_empty(url, params, cookies, proxy_list, proxy, 0, proxy_count)
-            print bcolors.OKGREEN + "\t\tGot response, status code:",response.status_code,"." + bcolors.ENDC
-            # get html source
-            html_source = response.text
-            print "\t\tGetting hotel_ids and prices..."
-            # get data
-            hotel_ids, hotel_prices = get_hotel_ids_prices(html_source)
-            num_hotels = len(hotel_ids)
-            print bcolors.OKGREEN +"\t\tObtained",num_hotels,"hotels to scrape." + bcolors.ENDC
-            print "\t\tStarting to scrape detailed hotel information..."
+        print "\t\tDoing request..."
+        # get trivago response
+        response = poll_until_not_empty(url, params, cookies, proxy_list, proxy, 0, proxy_count)
+        print bcolors.OKGREEN + "\t\tGot response, status code:",response.status_code,"." + bcolors.ENDC
+        # get html source
+        html_source = response.text
+        print "\t\tGetting hotel_ids and prices..."
+        # get data
+        hotel_ids, hotel_prices = get_hotel_ids_prices(html_source)
+        num_hotels = len(hotel_ids)
+        print bcolors.OKGREEN +"\t\tObtained",num_hotels,"hotels to scrape." + bcolors.ENDC
+        print "\t\tStarting to scrape detailed hotel information..."
 
-            for i,hotel_id in enumerate(hotel_ids):
-                print "\t\t\tProcessing Hotel id:", hotel_id,". Number",i+1,"out of",num_hotels,"..."
-                info = get_hotel_info(hotel_id, hotel_prices[i],city)
-                print bcolors.OKGREEN +"\t\t\tGot detailed information." + bcolors.ENDC
-                # wait a few seconds
-                print "\t\t\tWaiting..."
-                time.sleep(2)
-                # now update db
-                print "\t\t\tWriting to file..."
-                json.dump(info, data_file)
-                data_file.write("\n")
-                print bcolors.OKGREEN +"\t\t\tFile updated." + bcolors.ENDC
-                print "\n"
-                proxy_count += 1
-    except Exception as e:
-        print bcolors.FAIL + "\t\t\tMain scraper failed. Error:", e ,"." + bcolors.ENDC
-    finally:
-        data_file.close()
-        print "SCRAPER FAILED. Quitting..."
-        return None
+        for i,hotel_id in enumerate(hotel_ids):
+            print "\t\t\tProcessing Hotel id:", hotel_id,". Number",i+1,"out of",num_hotels,"..."
+            info = get_hotel_info(hotel_id, hotel_prices[i],city)
+            print bcolors.OKGREEN +"\t\t\tGot detailed information." + bcolors.ENDC
+            # wait a few seconds
+            print "\t\t\tWaiting..."
+            time.sleep(2)
+            # now update db
+            print "\t\t\tWriting to file..."
+            json.dump(info, data_file)
+            data_file.write("\n")
+            print bcolors.OKGREEN +"\t\t\tFile updated." + bcolors.ENDC
+            print "\n"
+            proxy_count += 1
+    # except Exception as e:
+    #     print bcolors.FAIL + "\t\t\tMain scraper failed. Error:", e ,"." + bcolors.ENDC
+    # finally:
+    data_file.close()
+    #print "SCRAPER FAILED. Quitting..."
+    #return None
 
         # TODO:
         # mongodb
@@ -445,12 +447,28 @@ def scrape(city, room_type, include_all):
 
 if __name__ == '__main__':
 
-    city_names = ['London','Paris','Madrid','Athens, Greece','Rome','Brussels','Berlin','Moscou','San Francisco, United States', 'Beijing, China',
-        'New York City, United States','Buenos Aires, Argentina', 'Rio de Janeiro, Brazil', 'New Delhi, India']
+    city_names = ['London',
+                  'Paris',
+                  'Madrid',
+                  'Athens',
+                  'Greece',
+                  'Rome',
+                  'Brussels',
+                  'Berlin',
+                  'Moscou',
+                  'San Francisco, United States',
+                  'Beijing, China',
+                  'New York City, United States',
+                  'Buenos Aires, Argentina',
+                  'Rio de Janeiro, Brazil',
+                  'New Delhi, India']
 
     London = City(name="London", path_id="38715", request_id = "v11_03_3_ai_es_ES_ES", geocode_lat="51.507359", geocode_lng="-0.127668", cpt = "3871503")
 
-    cities = [London]
+    Paris = City(name="Paris", path_id="36103", request_id = "v11_03_3_ai_es_ES_ES", geocode_lat="48.856445", geocode_lng="2.352231", cpt = "3610303")
+
+    cities = [Paris]
+
     rooms_types = ["1","7"]
 
     for i,city in enumerate(cities):
