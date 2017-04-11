@@ -124,7 +124,7 @@ class Parser():
 
     def parse_data(self):
 
-        data = np.empty([1,83])
+        data = np.empty([1,84])
         attributes = self.data_handler.get_attributes()
 
         hotel_names = [] # to avoid duplicates
@@ -153,7 +153,7 @@ class Parser():
             top_features = attributes[4]
             type_dict = attributes[5]
 
-            data = np.empty([1,83])
+            data = np.empty([1,84])
             c = 0
             for j,line in enumerate(lines):
 
@@ -166,6 +166,7 @@ class Parser():
 
                     data_line.append(dat["name"])
                     data_line.append(self.data_handler.parse_city_name(city_name))
+                    data_line.append(dat["price"])
                     data_line.append(1 if dat["has_quality_test"] == True else 0)
                     data_line.append(dat["hotel_total_rating"] if dat["hotel_total_rating"] else 0)
                     data_line.append(1 if dat["isPremiumPartner"] == True else 0)
@@ -295,6 +296,7 @@ if __name__ == '__main__':
 
     columns = ["hotel_name",
             "city",
+            "price",
             "quality_test",
             "total_rat",
             "premium",
