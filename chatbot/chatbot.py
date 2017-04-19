@@ -12,7 +12,7 @@ from message_handler_bot import *
 from telepot.namedtuple import InlineKeyboardMarkup, InlineKeyboardButton
 from telepot.namedtuple import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, ForceReply
 
-DATABASE_FILE = "TFM---Travel-chat-bot/trivago_data/pandas_dbs/dataset.pkl"
+DATABASE_FILE = "../trivago_data/pandas_dbs/dataset.pkl"
 db = pd.read_pickle(DATABASE_FILE)
 
 prices = db.price.astype(np.float64)
