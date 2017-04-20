@@ -277,7 +277,7 @@ if __name__=="__main__":
 
     bot.message_loop({'chat': on_chat_message,
                       'callback_query': on_callback_query})
-
+    print "Owner id", bot.getMe()
     print('Listening ...')
 
     # Keep the program running.
