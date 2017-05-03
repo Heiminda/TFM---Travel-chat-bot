@@ -11,6 +11,7 @@ import telepot
 import datetime
 
 from message_handler_bot import *
+from hotel_recommender import HotelRecommender
 
 from telepot.namedtuple import InlineKeyboardMarkup, InlineKeyboardButton
 from telepot.namedtuple import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, ForceReply
@@ -223,6 +224,7 @@ class MessageHandler(telepot.helper.ChatHandler):
         self._bot = self.bot
         self._msg_inline_keyboard = None
         self.feature_filter = FeatureFilter(args[0][1]["chat"]["id"])
+        self.recommender = HotelRecommender()
 
     def is_price_range(self, msg):
         try:
@@ -308,7 +310,7 @@ class MessageHandler(telepot.helper.ChatHandler):
                     self._chats.modify_state_from_id(chat_id, chat_state.CONFIRMING)
 
                     # RECOMMENDATION FILTER
-                    self.feature_filter.assign_value("price",self.parse_price_range(com))
+                    self.feature_filter.assign_value("price", self.parse_price_range(com))
 
                     # FOLLOW PROCESS HERE
                     markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -481,7 +483,7 @@ class MessageHandler(telepot.helper.ChatHandler):
 
                     # reset whole process and ask first question (city) again
                     msg_idf = telepot.message_identifier(self._msg_inline_keyboard)
-                    bot.editMessageText(msg_idf, "Okay, now you will be asked all the questions again.\n", parse_mode="Markdown")
+                    self._bot.editMessageText(msg_idf, "Okay, now you will be asked all the questions again.\n", parse_mode="Markdown")
 
                     self.feature_filter.delete_data()
 
@@ -494,11 +496,18 @@ class MessageHandler(telepot.helper.ChatHandler):
 
                 else:
                     # RECOMMEND HOTEL HERE
-                    self._bot.sendMessage(chat_id, "Great! Please, wait until we process your personalized hotel recommendations...\n", parse_mode="Markdown")
+                    msg_idf = telepot.message_identifier(self._msg_inline_keyboard)
+                    self._bot.editMessageText(msg_idf, "Great! Please, wait until we process your personalized hotel recommendations...\n", parse_mode="Markdown")
                     self._chats.modify_state_from_id(chat_id, chat_state.RECOMMENDATION)
 
                     # TODO
-                    print "HELLO RECOMMENDATION"
+                    self.recommender.set_features(self.feature_filter.get_filter_features())
+                    self.recommender.fit()
+                    N = 5
+                    predictions = self.recommender.show_n_predictions(N)
+
+                    for pred in predictions:
+                        self._bot.sendMessage(chat_id, pred, parse_mode="Markdown")
 
         # QUIT THE PROCESS
         if data == u"yes_quit" or data == u"no_quit":
