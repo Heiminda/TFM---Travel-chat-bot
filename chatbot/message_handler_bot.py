@@ -4,9 +4,9 @@ import numpy as np
 def welcome_message():
     return "*Welcome to Yogi Chatbot!* \
             \n\nHere we will recommend you flights and hotels according to your preferences. \
-            \nIn order to start using our bot, please type *Start*. \
-            \nIf you want to quit the process, just type *q* anytime. \
-            \nIf you want to repeat the process again just type *start* again."
+            \nIn order to start using our bot, please type */start*. \
+            \nIf you want to quit the process, just type */q* anytime. \
+            \nIf you want to repeat the process, type */start* again."
 
 def bye_message():
     return "Thank you for using Yogi Chatbot. See you next time!"
@@ -14,14 +14,11 @@ def bye_message():
 def hotel_rec_starter():
     return "Great! You just entered the *hotel recommender mode*. \
             \nDuring this mode, we will recommend you an hotel according to your preferences.\
-            \n\nWe will ask you a couple questions in order to improve the recommendation performance.\
-            \n- First, you must provide the _name_ of the city. (*Mandatory*)\
-            \n- Secondly, we will ask you the _room type_ (individual/double). (*Mandatory*)\
-            \n- Thirdly, you will be asked several questions regarding the _location_ of the hotel. (*optional*)"
+            \n\nWe will ask you a couple questions in order to improve the recommendation performance."
 
-def ask_reset():
-    return "You typed a start command again. Are you sure you want to *repeat* the whole process?\
-            \nNote that all your settings will be *lost* if you choose 'Yes'."
+def ask_quit():
+    return "You typed quit command. Are you sure you want to *quit* the whole process?\
+            \nNote that all your settings will be *lost* if so."
 
 def coming_back_reset():
     return "Okay, then you must interact with the _last question_ you were asked, please."
@@ -73,3 +70,9 @@ def price_format_wrong():
             \nRemember to give a price range *within the real range* (see Min Price and Max Price in the stats). \
             \nThe range format should be: *int*_<space>_*int*\
             \nExample: *100 200*"
+
+def print_features(feats):
+    s = "These are the filters we infered from you. Please, check if they are correct:\n"
+    s += "\n".join(["\t"+ k + " : *" + str(v) + "*" for k,v in feats.iteritems()])
+    s += "\n\n\nWould you like to change them?"
+    return s
