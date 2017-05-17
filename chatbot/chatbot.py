@@ -11,6 +11,7 @@ import telepot
 import datetime
 
 from message_handler_bot import *
+from hotel_recommender import HotelRecommender
 
 from telepot.namedtuple import InlineKeyboardMarkup, InlineKeyboardButton
 from telepot.namedtuple import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, ForceReply
@@ -22,7 +23,6 @@ from telepot.delegate import (
 
 options_central = ["Much","Not much","Outskirts","Don't care"]
 options_touristic = ["Yes", "Not really", "Don't care"]
-
 ###################################################################################
 
 class chat_state:
@@ -82,6 +82,8 @@ class DatabaseRetrieving(object):
     def get_neighbourhood_from_index(self, city, index):
         neighs = list(self._db[self._db.city == city].groupby("neighbourhood").count()["name"].sort_values(ascending=False).index)
         return neighs[index]
+
+    # def get_prices_from_db_filtered(self, dict_features): # TODO
 
     def get_prices_from_city(self, city):
         return np.asarray(self._db[self._db.city == city].price).astype(np.float64)
@@ -194,7 +196,7 @@ class FeatureFilter(object):
 
     def __init__(self, chat_id):
         self.chat_id = chat_id
-        self.features = {"city":None, "neighbourhood":None, "room":None, "centrality":None, "touristic":None, "price":None}
+        self.features = {"city":None, "neighbourhood":None, "room":None, "centrality":None, "price":None}
 
     def get_filter_features(self):
         return self.features
@@ -223,6 +225,7 @@ class MessageHandler(telepot.helper.ChatHandler):
         self._bot = self.bot
         self._msg_inline_keyboard = None
         self.feature_filter = FeatureFilter(args[0][1]["chat"]["id"])
+        self.recommender = HotelRecommender()
 
     def is_price_range(self, msg):
         try:
@@ -308,7 +311,7 @@ class MessageHandler(telepot.helper.ChatHandler):
                     self._chats.modify_state_from_id(chat_id, chat_state.CONFIRMING)
 
                     # RECOMMENDATION FILTER
-                    self.feature_filter.assign_value("price",self.parse_price_range(com))
+                    self.feature_filter.assign_value("price", self.parse_price_range(com))
 
                     # FOLLOW PROCESS HERE
                     markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -426,6 +429,7 @@ class MessageHandler(telepot.helper.ChatHandler):
         elif self._chats.get_chat_state(chat_id) == chat_state.TOURISTIC_ZONE:
 
             if data in options_touristic:
+                # 
                 idx = options_touristic.index(data)
                 # show feedback to user
                 msg_idf = telepot.message_identifier(self._msg_inline_keyboard)
@@ -437,7 +441,9 @@ class MessageHandler(telepot.helper.ChatHandler):
                 # follow the process
                 self._chats.modify_state_from_id(chat_id, chat_state.PRICE)
 
-                self._bot.sendMessage(chat_id, price_range_stats(self._db_retrieving.get_prices_from_city(self._chats.get_city_from_chat(chat_id))), parse_mode="Markdown")
+                self._bot.sendMessage(chat_id,
+                                        price_range_stats(self._db_retrieving.get_prices_from_city(self._chats.get_city_from_chat(chat_id))), parse_mode="Markdown")
+
                 markup = InlineKeyboardMarkup(inline_keyboard=[
                              [InlineKeyboardButton(text="Yes", callback_data="yes_price"), InlineKeyboardButton(text="No", callback_data="no_price")],
                          ])
@@ -481,7 +487,7 @@ class MessageHandler(telepot.helper.ChatHandler):
 
                     # reset whole process and ask first question (city) again
                     msg_idf = telepot.message_identifier(self._msg_inline_keyboard)
-                    bot.editMessageText(msg_idf, "Okay, now you will be asked all the questions again.\n", parse_mode="Markdown")
+                    self._bot.editMessageText(msg_idf, "Okay, now you will be asked all the questions again.\n", parse_mode="Markdown")
 
                     self.feature_filter.delete_data()
 
@@ -494,11 +500,18 @@ class MessageHandler(telepot.helper.ChatHandler):
 
                 else:
                     # RECOMMEND HOTEL HERE
-                    self._bot.sendMessage(chat_id, "Great! Please, wait until we process your personalized hotel recommendations...\n", parse_mode="Markdown")
+                    msg_idf = telepot.message_identifier(self._msg_inline_keyboard)
+                    self._bot.editMessageText(msg_idf, "Great! Please, wait until we process your personalized hotel recommendations...\n", parse_mode="Markdown")
                     self._chats.modify_state_from_id(chat_id, chat_state.RECOMMENDATION)
 
                     # TODO
-                    print "HELLO RECOMMENDATION"
+                    self.recommender.set_features(self.feature_filter.get_filter_features())
+                    self.recommender.fit()
+                    N = 5
+                    predictions = self.recommender.show_n_predictions(N)
+
+                    for pred in predictions:
+                        self._bot.sendMessage(chat_id, pred, parse_mode="Markdown")
 
         # QUIT THE PROCESS
         if data == u"yes_quit" or data == u"no_quit":
