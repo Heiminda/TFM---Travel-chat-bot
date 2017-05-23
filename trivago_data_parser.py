@@ -2,7 +2,7 @@
 
 import json
 import numpy as np
-import pandas
+import pandas as pd
 from unidecode import unidecode
 import pickle
 
@@ -118,23 +118,113 @@ class DataHandler():
 
 class Parser():
 
-    def __init__(self, dict_txt_files):
-        self.data_handler = DataHandler(dict_txt_files.values())
-        self.dict_txt_files = dict_txt_files
+    def __init__(self, cities, txt_files):
+        self.data_handler = DataHandler(txt_files)
+        self.cities = cities # List of city names
+        self.txt_files = txt_files
 
     def parse_data(self):
 
-        data = np.empty([1,83])
+        data_gen = np.zeros([1,84])
+
+        vis_columns = ["city", "name","email","phone","postal_code","price","star_count","street","type","web"] # falta neighbourhood
+        vis_df = pd.DataFrame(data=np.zeros([1,len(vis_columns)]), columns=vis_columns)
+        print vis_df
         attributes = self.data_handler.get_attributes()
 
-        hotel_names = [] # to avoid duplicates
+        hotel_names_gen = [] # to avoid duplicates
+        hotel_names_vis = [] # to avoid duplicates
 
-        for city_name, text_file in self.dict_txt_files.iteritems():
-            print city_name
-            city_data, hotel_names = self.parse_data_generator(city_name, text_file, attributes, hotel_names)
-            data = np.concatenate((data, city_data), axis = 0)
+        for city in self.cities:
+            if city == "Barcelona":
+                print city
+                for text_file in self.txt_files:
+                    city_data, hotel_names_gen = self.parse_data_generator(city, text_file, attributes, hotel_names_gen)
+                    data_gen = np.concatenate((data_gen, city_data), axis = 0)
 
-        return data[1:,]
+                    city_data_vis, hotel_names_vis = self.parse_data_visualizer(city, text_file, hotel_names_vis, vis_columns)
+                    vis_df = vis_df.append(city_data_vis, ignore_index=True)
+
+        return data_gen[1:,], vis_df.ix[1:,:]
+
+    def parse_data_visualizer(self, city_name, text_file, hotel_names, columns):
+
+        hnames = hotel_names
+
+        with open(text_file, "r") as f:
+            lines = f.readlines()
+
+        data = []
+
+        c = 0
+
+        for j,line in enumerate(lines):
+
+            dat = json.loads(line)
+
+            if dat["name"] not in hnames: #not repeated
+
+                data_line = []
+
+                hnames.append(dat["name"])
+                
+                data_line.append(unidecode(city_name))
+                
+                try:
+                    data_line.append(unidecode(dat["name"]))
+                except:
+                    data_line.append("")
+
+                try:
+                    data_line.append(unidecode(dat["email"]))
+                except:
+                    data_line.append("")
+
+                try:
+                    data_line.append(unidecode(dat["phone"]))
+                except:
+                    data_line.append("")
+
+                try:
+                    data_line.append(unidecode(dat["postalCode"]))
+                except:
+                    data_line.append("")
+
+                try:
+                    data_line.append(unidecode(dat["price"]))
+                except:
+                    data_line.append("")
+
+                try:
+                    data_line.append(str(dat["starCount"]))
+                except:
+                    data_line.append("")
+
+                try:
+                    data_line.append(unidecode(dat["street"]))
+                except:
+                    data_line.append("")
+
+                try:
+                    data_line.append(dat["type"]) # could be a list >= 1 element
+                except:
+                    data_line.append("")
+
+                try:
+                    data_line.append(unidecode(dat["web"]))
+                except:
+                    data_line.append("")
+
+#                 try:
+#                     # data_line.append(unidecode(dat["neighbourhood"])) # TODO: neighbourhood
+#                 except:
+#                     data_line.append("")
+                 # add data line
+                data.append(data_line)
+            else:
+                c += 1
+
+        return pd.DataFrame(data, columns=columns), hnames
 
     # input is a dict in which each key is the city name with its text_file_path
     def parse_data_generator(self, city_name, text_file, attributes, hotel_names):
@@ -153,7 +243,7 @@ class Parser():
             top_features = attributes[4]
             type_dict = attributes[5]
 
-            data = np.empty([1,83])
+            data = np.empty([1,84])
             c = 0
             for j,line in enumerate(lines):
 
@@ -166,6 +256,7 @@ class Parser():
 
                     data_line.append(dat["name"])
                     data_line.append(self.data_handler.parse_city_name(city_name))
+                    data_line.append(dat["price"])
                     data_line.append(1 if dat["has_quality_test"] == True else 0)
                     data_line.append(dat["hotel_total_rating"] if dat["hotel_total_rating"] else 0)
                     data_line.append(1 if dat["isPremiumPartner"] == True else 0)
@@ -261,7 +352,6 @@ class Parser():
                 else:
                     c += 1
 
-            print "Found %d duplicates" % c
             return data[1:,], hnames
         else:
             return None
@@ -274,27 +364,24 @@ if __name__ == '__main__':
     txt2 = "trivago_data/Barcelona/trivago_BarcelonaCap_31965_1_1_2017-03-20_15:49:03.txt"
     txt3 = "trivago_data/Barcelona/trivago_BarcelonaProv_344066_1_1_2017-03-15_12:00:28.txt"
 
-    bcn_cap_ind = "BarcelonaCap1"
-    bcn_cap_dou = "BarcelonaCap2"
-    bcn_prov = "BarcelonaProv"
-
-    city_names = [bcn_cap_ind, bcn_cap_dou, bcn_prov]
+    city_names = ["Barcelona"]
     txts = [txt1,txt2,txt3]
 
-    cities_dict = {city_names[i]:txts[i] for i in range(len(city_names))}
-
-    parser = Parser(cities_dict)
+    parser = Parser(city_names, txts)
     print "Getting data..."
-    data = parser.parse_data()
+    data_gen, data_vis = parser.parse_data()
     print "Done."
-    print "Data shape:", data.shape
+    print "Data shape:", data_gen.shape
+    print "Data vis shape:", data_vis.shape
 
     file_to_store = "trivago_data/pandas_dbs/dataset.pkl" # pickle file
+    file_to_store_vis = "trivago_data/pandas_dbs/dataset_visualization.pkl"
 
-    print "Creating pandas database and storing it in:", file_to_store
+    print "Creating pandas databases and storing them in:", file_to_store, "and", file_to_store_vis
 
     columns = ["hotel_name",
             "city",
+            "price",
             "quality_test",
             "total_rat",
             "premium",
@@ -377,11 +464,11 @@ if __name__ == '__main__':
             "wifi_hall_free",
             "hotel_type"]
 
-    dataset = pandas.DataFrame(data=data, columns=columns)
-    print dataset.head()
+    dataset = pd.DataFrame(data=data_gen, columns=columns)
 
     # store it as a pickle file
     dataset.to_pickle(file_to_store)
+    data_vis.to_pickle(file_to_store_vis)
 
     # to load it back
     # dataset = pd.read_pickle(file_to_store)
