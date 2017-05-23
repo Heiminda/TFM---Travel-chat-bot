@@ -105,7 +105,7 @@ def do_request_imp(request_type, url, data, apikey, proxy):
         url += '?apikey=' + apikey
 
     try:
-        r = get_method(request_type)(url, data=payload, headers=headers, proxies={'http': proxy, 'https': proxy}, timeout=10)
+        r = get_method(request_type)(url, data=payload, headers=headers, proxies={'http': proxy, 'https': proxy}, timeout=10, verify=False)
     except Exception as e:
         return Struct(status_code=598, exception=e)
 
@@ -496,7 +496,7 @@ if __name__ == '__main__':
     sys.excepthook = lambda *args, **kwargs: my_excepthook(original_excepthook, *args, **kwargs)
 
     api_keys_list = [
-        'prtl6749387986743898559646983194',
+        #'prtl6749387986743898559646983194',
         'py495888586774232134437415165965',
         'de995438234178656329029769192274',
         'de187392941311932513127356346821',
@@ -531,7 +531,7 @@ if __name__ == '__main__':
         def _inner():
             try:
                 headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
-                r = requests.get('http://ip.jsontest.com/', headers=headers, proxies={'http': proxy, 'https': proxy}, timeout=10)
+                r = requests.get('http://api.ipify.org/?format=json', headers=headers, proxies={'http': proxy, 'https': proxy}, timeout=10, verify=False)
                 obj = json.loads(r.text)
                 return r.status_code == 200, r.status_code
             except Exception as e:
@@ -545,7 +545,7 @@ if __name__ == '__main__':
         global proxies_list
         global proxies_lock
         try:
-            proxy_req = requests.get('https://freevpn.ninja/free-proxy/json')
+            proxy_req = requests.get('http://freevpn.ninja/free-proxy/json', verify=False)
             proxy_json = json.loads(proxy_req.text)
             proxies_list_tmp = [p['proxy'] for p in proxy_json[start:start+10]]
             #logger.info("[PROXIES] Original size %d" % (len(proxies_list_tmp),))
@@ -596,7 +596,7 @@ if __name__ == '__main__':
 
     itineraries = [('BCN', dest) for dest in destinations]
     # , start_time=1488249243, override_waitfor='2017-03-23-17'
-    fetcher = Fetcher(90, itineraries, start_time=1488249243, override_waitfor='2017-03-31-13') #14
+    fetcher = Fetcher(90, itineraries, start_time=1491051829, override_waitfor='2017-04-26-01') #14
 
     while True:
         # Keep pooling proxies
