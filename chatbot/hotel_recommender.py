@@ -13,7 +13,6 @@ class HotelRecommender(object):
             "neighbourhood": (string) / None,
             "room": ["Individual", "Double", "More"]
             "centrality": ["Much", "Not much", "Outskirts", "Don't care"],
-            "touristic": ["Yes", "Not really", "Don't care"],
             "price": (tuple of type (int,int)) / None
             }
         """
@@ -66,15 +65,12 @@ class HotelRecommender(object):
         elif centrality == "Outskirts":
             df = df.loc[(df['is_hotel_very_centric'] == False) & df['is_hotel_centric'] == False]
 
-        # TOURISTIC
-        # if touristic == "Yes":
-        #     df = df.loc[(df['is_hotel_very_centric'] == True) & df['is_neighbourhood_very_centric'] == True]
-        # elif touristic == "Not really":
-        #     df = df.loc[(df['is_hotel_centric'] == True)]
-
         # PRICE
         if price:
-            df = df[df["price"].astype(np.float64).between(price[0], price[1], inclusive=True)]
+            min_price = df["price"].astype(np.float64).min()
+            max_price = df["price"].astype(np.float64).max()
+
+            df[(df['price'].astype(np.float64) >= max(float(price[0]),min_price)) & (df['price'].astype(np.float64) <= min(float(price[1]),max_price))]
 
         # sort hotels by rating values?
         df = df.ix[df.ix[:,9:18].mean(axis=1).sort_values(ascending=False).index]
@@ -112,7 +108,6 @@ class HotelRecommender(object):
             string_preds.append(s)
 
         return string_preds
-
 
     def filter_by_features(self, df, features):
         # Select hotels with specific features (all cases)
