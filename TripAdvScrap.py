@@ -10,12 +10,13 @@ import argparse
 from bs4 import BeautifulSoup
 from random import choice, shuffle
 import pymongo
+import json
 
 
 def main():
 
-    url='https://freevpn.ninja/free-proxy/json'
-    proxies=requests.get(url).json()
+    #url='https://freevpn.ninja/free-proxy/json'
+    #proxies=requests.get(url).json()
 
     user_agents = [
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/600.8.9 (KHTML, like Gecko) Version/8.0.8 Safari/600.8.9',
@@ -49,22 +50,27 @@ def main():
      'https://www.tripadvisor.co.uk/Hotel_Review-g187497-d239542-Reviews-Hotel_Cram-Barcelona_Catalonia.html',
      'https://www.tripadvisor.co.uk/Hotel_Review-g187497-d239541-Reviews-Hostal_Grau-Barcelona_Catalonia.html',
      'https://www.tripadvisor.co.uk/Hotel_Review-g187497-d190615-Reviews-Hotel_Claris-Barcelona_Catalonia.html',
-     'https://www.tripadvisor.co.uk/Hotel_Review-g187497-d232792-Reviews-Pol_Grace_Hotel-Barcelona_Catalonia.html']
+     'https://www.tripadvisor.co.uk/Hotel_Review-g187497-d232792-Reviews-Pol_Grace_Hotel-Barcelona_Catalonia.html',
+     'https://www.tripadvisor.es/Hotel_Review-g187497-d610494-Reviews-Hotel_Barcelona_Catedral-Barcelona_Catalonia.html',
+     'https://www.tripadvisor.es/Hotel_Review-g187497-d2367494-Reviews-Hotel_Primero_Primera-Barcelona_Catalonia.html',
+     'https://www.tripadvisor.es/Hotel_Review-g187497-d623893-Reviews-Villa_Emilia-Barcelona_Catalonia.html',
+     'https://www.tripadvisor.es/Hotel_Review-g187497-d296916-Reviews-Hotel_Jazz-Barcelona_Catalonia.html',
+     'https://www.tripadvisor.es/Hotel_Review-g187497-d619681-Reviews-Soho_Hotel-Barcelona_Catalonia.html',
+     'https://www.tripadvisor.es/Hotel_Review-g187497-d228466-Reviews-Crowne_Plaza_Barcelona_Fira_Center-Barcelona_Catalonia.html']
 
     # Per obtenir urls hotels --> passar unes urls de test
 
-    cities = ['Barcelona','London','Paris','Madrid','Athens, Greece','Rome','Brussels','Berlin','Moscou','San Francisco, United States', 'Beijing, China',
-        'New York City, United States','Buenos Aires, Argentina', 'Rio de Janeiro, Brazil', 'New Delhi, India']
+    cities = ['Barcelona','London','Paris','Madrid','Athens, Greece','Rome','Brussels','Berlin','Moscou','San Francisco, United States', 'Beijing, China', 'New York City, United States','Buenos Aires, Argentina', 'Rio de Janeiro, Brazil', 'New Delhi, India']
 
     cont_collections = 0
 
     for city in cities:
 
-        headers,preliminari_proxy = test_proxy(user_agents,proxies,choice(preliminari_urls))
-
         # read json file of proxies
-        #with open('/Users/alexandrenixon/Desktop/proxies.json') as data_file:
-            #proxies = json.load(data_file)
+        with open('/Users/alexandrenixon/Documents/DS2/Chatbot/proxies.json') as data_file:
+            proxies = json.load(data_file)
+
+        headers,preliminari_proxy = test_proxy(user_agents,proxies,choice(preliminari_urls))
 
         checkin_date= datetime(2017, 9, 2)
         checkout_date= datetime(2017, 9, 3)
@@ -73,7 +79,7 @@ def main():
         hotels,url_from_autocomplete = parse(city,checkin_date,checkout_date,headers,preliminari_proxy,sort=None)
 
         # Comencar iteracions amb proxy
-        headers,proxy = test_proxy(user_agents,proxies,url = choice(hotels)['url'])
+        headers,proxy = test_proxy(user_agents,proxies, choice(preliminari_urls))
 
         # N de pagines de hotels
         n_hotel_pages = int(hotel_pages(url_from_autocomplete)[0])
@@ -101,10 +107,11 @@ def main():
         paris = db.paris
         madrid = db.madrid
         athens = db.athens
+        greece = db.greece
         rome = db.rome
         brussels = db.brussels
         berlin = db.berlin
-        moscou = db.moscou
+        moscow = db.moscow
         sanfrancisco = db.sanfrancisco
         beijing = db.beijing
         newyork = db.newyork
@@ -112,25 +119,41 @@ def main():
         riodejaneiro = db.riodejaneiro
         newdelhi = db.newdelhi
 
-        collections = [barcelona, london, paris, madrid, athens, rome, brussels, berlin, moscou, sanfrancisco, beijing, newyork, buenosaires, riodejaneiro, newdelhi]
 
-
+        collections = [barcelona, london, paris, madrid, athens, greece, rome, brussels, berlin, moscow, sanfrancisco, beijing, newyork, buenosaires, riodejaneiro, newdelhi]
+        #conn.close()
         ######################################## GET REVIEWS FROM EACH HOTEL AND INSERT IN MONGODB ########################################
 
         cont=0
-        XPATH_REVIEWS = './/div[@class="wrap"]/div[@class="prw_rup prw_common_html"][1]//p[@class="partial_entry"]//text()'
-        for url,name in zip(urls,names):
-            reviews = {'name':name,'comments':[]}
+        cont_english_till = 0
+        XPATH_REVIEW_tmp = './/div[@class="wrap"]//div[contains(@class,"prw_rup")]//p[@class="partial_entry"]/text()'
+        XPATH_REVIEW = './/div[@class="wrap"]/div[contains(@class,"prw_rup")]/div[@class="entry"]/p[@class="partial_entry"]/text()'
+        #XPATH_REVIEW = './/div[@class="wrap"]/div[@class="prw_rup prw_common_html"][1]//p[@class="partial_entry"]//text()'
+        XPATH_RATING = './/div[@class="wrap"]/div[@class="rating reviewItemInline"]/*[contains(@class, "ui_bubble_rating bubble_")]'
+        XPATH_REVIEW_TITLE = './/div[contains(@class, "prw_rup prw_reviews_basic_review_hsx")]//a[contains(@href, "ShowUserReviews")]//text()'
+        XPATH_ENGLISH_UNTIL = './/label[contains(@class,"filterLabel ")]/span//text()'
+
+        already_in_db = collections[cont_collections].distinct('name')
+        set_already_in_db = set(already_in_db)
+        not_in = [(x,i) for x,i in zip(names,range(len(names))) if x not in set_already_in_db]
+        names_not_in_db = list(zip(*not_in)[0])
+        indexes_names_not_in_db = list(zip(*not_in)[1])
+
+        urls = [urls[i] for i in indexes_names_not_in_db]
+
+
+        for url,name in zip(urls,names_not_in_db):
+            #print 'https://www.tripadvisor.co.uk/' + choice(urls)
+            reviews = {'name':name,'comments':[], 'title_comments':[], 'rating':[]}
             while True:
                 try:
                     with timeout(7, exception=RuntimeError):
-                        headers,proxy = test_proxy(user_agents,proxies,url = choice(hotels)['url'])
+                        headers,proxy = test_proxy(user_agents,proxies,url = 'https://www.tripadvisor.co.uk' + choice(urls))
                 except (RuntimeError,Exception) as e:
                     continue
                     pass
                 break
             url_iter = review_url_pagination(url)
-            print url_iter
             url="https://www.tripadvisor.co.uk" + url_iter
             index_pages = (url.format(i) for i in range(0, n_review_pages(url)*10, 10))
             iters=0
@@ -149,19 +172,59 @@ def main():
                         pass
                     break
                 parser = html.fromstring(result)
-                reviews_page = parser.xpath(XPATH_REVIEWS)
+
+                reviews_page = parser.xpath(XPATH_REVIEW)
+                reviews_page = [i for i in reviews_page if i != 'More']
+                ratings_page = parser.xpath(XPATH_RATING)
+                english_till = parser.xpath(XPATH_ENGLISH_UNTIL)
+                title_reviews_page = parser.xpath(XPATH_REVIEW_TITLE)
+                ratings = [i.get('class')[-2] for i in ratings_page]
+
+                #if len(reviews_page) > 0:
+                #    print(index)
+                #    print (len(reviews_page), len(ratings_page))
+                #    if len(reviews_page)<20:
+                #        for i in reviews_page:
+                #            print i, '\n'
+                #        for i in ratings:
+                #            print i
+                #    print "\n"
+                #for i in ratings:
+                #    print i
+                #for i in reviews_page:
+                #    print i
+
+
+                if reviews_page == []: break;
+                cont_english_till += 5
+                if cont_english_till == int(english_till[0][1:-1]):
+                    break;
+                    
                 reviews['comments'].extend(reviews_page)
+                reviews['rating'].extend(ratings[:len(reviews_page)])
+                reviews['title_comments'].extend(title_reviews_page[:len(reviews_page)])
+
+                print index
+                print name
+                print title_reviews_page
+                print ratings
+                print reviews_page
+                print ''
+                print ''
+
+                del parser, result, reviews_page
                 if cont==10:
                     while True:
                         try:
                             with timeout(7, exception=RuntimeError):
-                                headers,proxy = test_proxy(user_agents,proxies,url = choice(hotels)['url'])
+                                headers,proxy = test_proxy(user_agents,proxies,url = 'https://www.tripadvisor.co.uk' + choice(urls))
                         except (RuntimeError,Exception) as e:
                             continue
                             pass
                         cont=0
                         break
                 cont+=1
+
             collections[cont_collections].insert_one(reviews)
             print 'Inserted comments of hotel:', name
             print ""
@@ -186,6 +249,7 @@ def test_proxy(user_agents,proxies,url):
                     result = requests.get(url, proxies=proxy, headers=headers).text
                     parser = html.fromstring(result)
                     title = parser.xpath(XPATH_TITLE)
+                    del parser, result
                     if title != []: break
         except (RuntimeError,Exception) as e:
             print 'Proxy error', e
@@ -202,6 +266,7 @@ def hotel_pages(url_from_autocomplete):
     result = requests.get(url).text
     parser = html.fromstring(result)
     n_hotel_pages = parser.xpath(XPATH_N_HOTEL_PAGES)
+    del parser, result
     return n_hotel_pages
 
 def n_review_pages(url):
@@ -211,6 +276,7 @@ def n_review_pages(url):
     npages = parser.xpath(XPATH_N_HOTEL_PAGES)
     if npages == []:
         npages = [1.0]
+    del parser,result
     return int(npages[-1])
 
 def hotel_url_pagination(url_from_autocomplete):
@@ -252,6 +318,8 @@ def get_hotel_urls(url,headers, n_hotel_pages, user_agents, proxies, hotels):
             except (RuntimeError,Exception) as e:
                 print 'Proxy error', e
                 proxy = choice(proxies)
+    del parser,r,soup,url_list,name_list, index_pages, index
+    s.close()
     return urls, names
 
 def parse(locality,checkin_date,checkout_date,headers,preliminari_proxy,sort):
