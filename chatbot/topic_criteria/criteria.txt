@@ -1,0 +1,18 @@
+bathroom:bathroom,lavatory,shower,toilet,bath,balmy,sunbathe
+adequateness:adequate,family,business,gay,love,couple,honey moon,honey,moon,meeting,meetings,work,travel,tourist,tourists,touristic,fiancee,special,oriental,traveller,smoke,smoker,wedding,husband,wife,vacation
+bar:bar,cocktail,drink
+room:room,apartment,chamber,design,definition,rooftop,ceiling,balcony,terrace
+restaurant:restaurant
+food:food,dinner,lunch,croissant,dessert,tapas,coffee,meal
+hotel:hotel,property,lodge,resort,lounge
+bed:bed,sleep quality,mattress,mattresses,linens,blanket
+order:order,book,booking,pre-order,ordering,check-in,check-out,dropoff,drop-off,reservation
+environment:environment,ambience
+facilities:facilities,facility,tv,decoration,redecorate,decorate,internet,wifi,luggage,cold
+cost:cost,price,bill
+location:location,spot,environment,harbor,subway,venus,neighborhood,discover,street,sun,transportation,transport,metro,oasis,airport,noise,noisy,town,centrum,bakery,wind,district,grocery,supermarket,groceries,harbour,suburb,beach,restaurants,bars,far,where,road
+breakfast:breakfast,croissant
+cleanliness:cleanliness,clean,jacuzzi,cleaness
+problem:trouble
+pool:pool,spa,wellness
+staff:staff,service,personnel,crew,manager,insult,feedback,hospitality,complain,agent,office,management,welcome,agency,welcoming,language,fight,generosity,generous,reception
