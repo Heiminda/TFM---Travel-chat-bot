@@ -62,9 +62,9 @@ def main():
 
     cities = ['Barcelona','London','Paris','Madrid','Athens, Greece','Rome','Brussels','Berlin','Moscou','San Francisco, United States', 'Beijing, China', 'New York City, United States','Buenos Aires, Argentina', 'Rio de Janeiro, Brazil', 'New Delhi, India']
 
-    cont_collections = 0
+    cont_collections = 2
 
-    for city in cities:
+    for city in cities[2:]:
 
         # read json file of proxies
         with open('/Users/alexandrenixon/Documents/DS2/Chatbot/proxies.json') as data_file:
@@ -140,8 +140,8 @@ def main():
         indexes_names_not_in_db = list(zip(*not_in)[1])
 
         urls = [urls[i] for i in indexes_names_not_in_db]
-
-
+        print 'already done:', len(already_in_db)
+        print 'hotels to do:', len(names_not_in_db)
         for url,name in zip(urls,names_not_in_db):
             #print 'https://www.tripadvisor.co.uk/' + choice(urls)
             reviews = {'name':name,'comments':[], 'title_comments':[], 'rating':[]}
@@ -301,14 +301,13 @@ def get_hotel_urls(url,headers, n_hotel_pages, user_agents, proxies, hotels):
     urls = []
     cont=0
     names = []
-    proxy = choice(proxies)
     index_pages = (url.format(i) for i in range(0, n_hotel_pages*30, 30))
     XPATH_HOTEL_NAME = './/a[contains(@class,"property_title")]//text()'
     with requests.session() as s:
         for index in index_pages:
             try:
                 with timeout(7, exception=RuntimeError):
-                    r = s.get(index,proxies = proxy, headers=headers)
+                    r = s.get(index,proxies = choice(proxies), headers=headers)
                     soup = BeautifulSoup(r.text, 'lxml')
                     url_list = [i.get('href') for i in soup.select('.property_title')]
                     parser = html.fromstring(r.text)
