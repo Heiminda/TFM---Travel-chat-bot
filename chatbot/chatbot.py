@@ -216,11 +216,10 @@ class LogSaver(telepot.helper.Monitor):
                             "date"      : int(msg["date"]),
                             "content"   : msg["text"].lower(),
                             "user_id"   : msg["from"]["id"],
-                            "lang_code" : msg["from"]["language_code"],
                             "chat_state": c_state,
                             "aux_state" : a_state
-                          }
-                #self._log.insert(content) TODO ACTIVATE
+                            }
+                self._log.insert(content)
 
     def on_callback_query(self, msg):
         query_id, chat_id, data = telepot.glance(msg, flavor='callback_query', long=True)
@@ -237,11 +236,10 @@ class LogSaver(telepot.helper.Monitor):
                             "date"      : int(msg["message"]["date"]),
                             "content"   : msg["data"],
                             "user_id"   : msg["from"]["id"],
-                            "lang_code" : msg["from"]["language_code"],
                             "chat_state": c_state,
                             "aux_state" : a_state
                           }
-                #self._log.insert(content) TODO ACTIVATE
+                self._log.insert(content)
 
 ####################################################################################
 
@@ -584,7 +582,7 @@ class MessageHandler(telepot.helper.ChatHandler):
                             # follow the process
                             self._chats.modify_state_from_id(chat_id, chat_state.FLIGHT_FROM_AIRPORT)
                             # Ask departure airport
-                            self._bot.sendMessage(chat_id, choose_airport(), parse_mode="Markdown")
+                            self._bot.sendMessage(chat_id, choose_airport(airports), parse_mode="Markdown")
 
                     # user chose None of them
                     elif com == str(len(self._chats.get_suggested_flight_cities(chat_id))):
@@ -635,8 +633,8 @@ class MessageHandler(telepot.helper.ChatHandler):
                         airports = self.flight_predictor.find_airports_from_city(n)
 
                         if len(airports) == 1:
-                            self.flight_filter.assign_value("to", airports[0])
-                            self._bot.sendMessage(chat_id, "Got it. Destination airport: *" + airports[0] + "*", parse_mode="Markdown")
+                            self.flight_filter.assign_value("to", "BCN") # TODO CHANGE WHEN SUPPORT OTHER CITIES THAN BCN
+                            self._bot.sendMessage(chat_id, "Got it. Destination airport: *" + "BCN" + "*", parse_mode="Markdown")
 
                             # follow the process
                             self._bot.sendMessage(chat_id, ask_departure_date(), parse_mode="Markdown")
@@ -663,8 +661,8 @@ class MessageHandler(telepot.helper.ChatHandler):
                         airports = self.flight_predictor.find_airports_from_city(nearest_c[idx])
 
                         if len(airports) == 1:
-                            self.flight_filter.assign_value("to", airports[0])
-                            self._bot.sendMessage(chat_id, "Got it. Destination airport: *" + airports[0] + "*", parse_mode="Markdown")
+                            self.flight_filter.assign_value("to", "BCN") # TODO CHANGE WHEN SUPPORT OTHER CITIES THAN BCN
+                            self._bot.sendMessage(chat_id, "Got it. Destination airport: *BCN*", parse_mode="Markdown")
 
                             # follow the process
                             self._bot.sendMessage(chat_id, ask_departure_date(), parse_mode="Markdown")
@@ -691,8 +689,8 @@ class MessageHandler(telepot.helper.ChatHandler):
             if com in [str(i) for i in range(len(self._chats.get_suggested_airports(chat_id)))]:
                 idx = int(com)
                 airports = self._chats.get_suggested_airports(chat_id)
-                self.flight_filter.assign_value("to", airports[idx])
-                self._bot.sendMessage(chat_id, "Got it. Destination airport: *" + airports[idx] + "*", parse_mode="Markdown")
+                self.flight_filter.assign_value("to", "BCN") # TODO CHANGE WHEN SUPPORT OTHER CITIES THAN BCN
+                self._bot.sendMessage(chat_id, "Got it. Destination airport: *BCN*", parse_mode="Markdown")
 
                 # follow the process
                 self._bot.sendMessage(chat_id, ask_departure_date(), parse_mode="Markdown")
@@ -710,8 +708,8 @@ class MessageHandler(telepot.helper.ChatHandler):
                 self._bot.sendMessage(chat_id, "Got it. Departure date: *" + com + "*", parse_mode="Markdown")
 
                 # follow the process
-                rec = self.flight_predictor.find_best_flight(self.flight_filter.get_flight_filters()) # TODO Activate
-                # rec = ('2017-07-13', 131.81630000000001, 'LCY')
+                rec = self.flight_predictor.find_best_flight(self.flight_filter.get_flight_filters())
+                # rec = ('2017-07-13', 131.81630000000001, from, 'BCN')
 
                 self._bot.sendMessage(chat_id, rec_flight(rec, self.flight_predictor.get_airport_dict()), parse_mode="Markdown")
 
@@ -1204,12 +1202,14 @@ class MessageHandler(telepot.helper.ChatHandler):
                 msg_idf = telepot.message_identifier(self._msg_inline_keyboard)
                 self._bot.editMessageText(msg_idf, sent_analysis_confirmation(), parse_mode="Markdown")
 
-                # saving review to database TODO ACTIVATE
-                # self._reviews.insert(self.sentiment_results)
+                self._reviews.insert(self.sentiment_results)
 
                 # following process
                 self._chats.modify_aux_state_from_id(chat_id, auxiliar_state.FINISHED)
                 self._chats.modify_state_from_id(chat_id, chat_state.NEW)
+                # reset data from filters
+                self.flight_filter.reset_filters()
+                self.feature_filter.reset_filters()
 
             elif data == "sent_yes_change":
                 self.sentiment_results = None
@@ -1300,7 +1300,7 @@ class TravelChatbot(telepot.DelegatorBot):
     def __init__(self, token):
 
         self._chats = ChatCollection()
-        self._flight_predictor = FlightPredictor("../../predict_flights/Rfregressor_airport.pickle", "DCOILBRENTEU.csv")
+        self._flight_predictor = FlightPredictor("../../predict_flights/Rfregressor.pickle", "DCOILBRENTEU.csv")
 
         super(TravelChatbot, self).__init__(token, [
             # Here is a delegate to specially handle owner commands.

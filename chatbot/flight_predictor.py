@@ -18,6 +18,7 @@ class FlightPredictor():
         self.airport_array  = np.array(self.airport)
         self.encoder        = self.init_encoder()
         print "Done"
+
     def init_oil(self, oilcsv):
         Oil_prices = pd.read_csv(oilcsv)
         Oil_prices.DCOILBRENTEU[Oil_prices.DCOILBRENTEU == '.'] = float('nan')
@@ -45,10 +46,11 @@ class FlightPredictor():
                    'PEK',
                    'EZE',
                    'GIG',
-                   'DEL']
+                   'DEL',
+                   'BCN']
         airport_cities = ['london','london','london','london','london','london','paris','paris','paris','madrid','athens','rome','rome',
                          'brussels','brussels','berlin','berlin','moscow','moscow','san francisco','new york','beijing','buenos aires',
-                         'rio de janeiro','new delhi']
+                         'rio de janeiro','new delhi',"barcelona"]
         airport_dict = {"London": airport[0:6],
                         "Paris": airport[6:9],
                         "Madrid": [airport[9]],
@@ -62,7 +64,9 @@ class FlightPredictor():
                         "Beijing": [airport[21]],
                         "Buenos Aires": [airport[22]],
                         "Rio de Janeiro": [airport[23]],
-                        "New Delhi": [airport[24]]}
+                        "New Delhi": [airport[24]],
+                        "Barcelona": [airport[25]]}
+
         return airport, airport_cities, airport_dict
 
     def get_airport_cities(self):
@@ -92,8 +96,8 @@ class FlightPredictor():
         enc.fit(to_encode)
         return enc
 
-    def predict_lowest_price(self, departure_date, destination):
-        Rfregressor_air = self.rfregressor[destination]
+    def predict_lowest_price(self, departure_date, origin, destination):
+        Rfregressor_air = self.rfregressor[origin]
         today = dtime.today().date()
         departure_date = dtime.strptime(departure_date, '%Y-%m-%d').date()
         predict2 = []
@@ -101,7 +105,7 @@ class FlightPredictor():
         date = today
         for i in range((departure_date-today).days):
             date = today + datetime.timedelta(days=i)
-            predict2.append([self.airport.index(destination),
+            predict2.append([self.airport.index(origin),
                       date.weekday(),
                       departure_date.weekday(),
                       departure_date.month])
@@ -112,23 +116,14 @@ class FlightPredictor():
         #return prediction
         days_wait_to_buy = [k1  for k1, k2 in enumerate(prediction) if k2 == min(prediction) ][0]
         price = min(prediction)
-        return (today + datetime.timedelta(days=days_wait_to_buy) ).isoformat(), price, destination
+        return (today + datetime.timedelta(days=days_wait_to_buy)).isoformat(), price, origin, destination
 
     def find_best_flight(self, options):
-        if options["to"] in self.airport:
-            day, price, airport = self.predict_lowest_price(options["when"], options["to"])
-            return day, price, airport
-        else:
-            dest = options["to"].lower()
-            airs = self.airport_array[[k for k,city in enumerate(self.airport_cities) if city == dest]]
-            minprice = 1e10
-            for air in airs:
-                day, price, airport = self.predict_lowest_price(options["when"], air)
-                if price < minprice:
-                    minprice = price
-                    minday = day
-                    minairport = airport
-            return day, price, airport
+        if options["to"] != "BCN":
+            return 0,0,0,0
+        if options["from"] in self.airport:
+            day, price, origin, dest = self.predict_lowest_price(options["when"], options["from"], "BCN")
+            return day, price, origin, dest
 
     # usage: flight_regressor.find_best_flight('2017-08-04','LCY')
     # usage: flight_regressor.find_best_flight('2017-08-04','London')

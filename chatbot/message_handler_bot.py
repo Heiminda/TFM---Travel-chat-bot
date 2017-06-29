@@ -4,9 +4,9 @@ import numpy as np
 def welcome_message():
     return "*Welcome to Travel Chatbot!* \
             \n\nHere I will recommend you flights and hotels according to your preferences. \
-            \nIn order to start using our bot, please type */start*. \
-            \nIf you want to quit the process, just type */quit* anytime. \
-            \nIf you want to repeat the process, type */repeat*."
+            \n\n- In order to start using our bot, please type */start*. \
+            \n- If you want to quit the process, just type */quit* anytime. \
+            \n- If you want to repeat the process, type */repeat*."
 
 def ask_first_question():
     return "Okay, thank you for start using me. \
@@ -38,7 +38,7 @@ def ask_flight_from():
     return "Please write the *departure city*"
 
 def ask_flight_to():
-    return "Please write the *destination city*"
+    return "Please write the *destination city*. Note that it has to be *Barcelona* since we do not support any other city yet..."
 
 def notify_user_wait():
     return "Please wait, I am doing things on background..."
@@ -120,15 +120,16 @@ def not_valid_date():
     return "This is not a valid date. Remember that the departure date should be at least a day ahead from today! Please write it again."
 
 def rec_flight(rec, airport_dict):
-    day, price, airport = rec
+    day, price, origin, dest = rec
     for k, v in airport_dict.iteritems():
-        if airport in v:
+        if origin in v:
             city = k
             break
     return "My recommendation is:\
             \n\nBuy the ticket on day: *%s*\
             \nEstimated best price: *%.2f eur*\
-            \nAirport: *%s, %s*" % (day, price, airport, city)
+            \nOrigin Airport: *%s, %s*\
+            \nDestination Airport: *%s,%s*" % (day, price, origin, city, dest, "Barcelona")
 
 def ask_to_follow_to_hotel():
     return "Nice, you have just finished my flight recommendation process.\
@@ -187,14 +188,18 @@ def ask_review_user():
     s += "In order to improve my recommender system performance, I have to ask you to write a *short review* explaining "
     s += "what you liked or not liked about the hotel recommendations.\n\n"
     s += "Here are a couple of review suggestions that could work:\n\n"
-    s += "\t_Bad price_"
+    s += "\t_Everything was fine._\n"
+    s += "\t_It worked._\n"
+    s += "\t_Location and cost were terrible, too high._\n"
     return s
 
 def ask_review_user2():
     s = "Okay.\n\n"
     s += "Please, write a review again.\n\n"
     s += "Here are a couple of review suggestions that could work:\n\n"
-    s += "\t_Bad price_"
+    s += "\t_Everything was fine._\n"
+    s += "\t_It worked._\n"
+    s += "\t_Location and cost were terrible, too high._\n"
     return s
 
 def explain_sentiment_results(results):
@@ -207,7 +212,7 @@ def explain_sentiment_results(results):
         else:
             s += "*"+str(topic)+"*" + " : " + "*Negative*"
 
-    s += "\n\nThe overall sentiment of the review is *" + results["sentiment"] + "*"
+    s = "Okay, the overall sentiment of the review is *" + results["sentiment"] + "*"
     s += " with a *%.2f%%* of confidence." % results["confidence"]
     return s
 
