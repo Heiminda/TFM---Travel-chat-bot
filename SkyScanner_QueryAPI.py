@@ -190,7 +190,7 @@ class SkyscannerAPI(object):
 # In[5]:
 
 if __name__ == '__main__':
-    api = SkyscannerAPI('mongodb://skyscanner:skyscanner_tfm@161.116.83.104/skyscanner')
+    api = SkyscannerAPI()
     flights = api.find_flight('2017-06-30', 'BCN', 'EZE')
 
     for f in flights:
