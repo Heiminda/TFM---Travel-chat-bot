@@ -481,6 +481,14 @@ class MessageHandler(telepot.helper.ChatHandler):
         except ValueError:
             return "wrong_format"
 
+    def convert_sent_results(self, results):
+        return { "sentiment": results["sentiment"],
+                 "confidence": results["confidence"],
+                 "content": results["content"],
+                 "topics": list(dict(results["topics"]))
+                }
+
+
     # This method deals with text messages
     def on_chat_message(self, msg):
         content_type, chat_type, chat_id, msg_date, msg_id = telepot.glance(msg, long=True)
@@ -855,7 +863,7 @@ class MessageHandler(telepot.helper.ChatHandler):
                 markup = InlineKeyboardMarkup(inline_keyboard=[
                              [InlineKeyboardButton(text="OK", callback_data="no_change"), InlineKeyboardButton(text="Change", callback_data="yes_change")],
                          ])
-                self._msg_inline_keyboard = self._bot.sendMessage(chat_id, "Are them OK?", parse_mode="Markdown", reply_markup=markup)
+                self._msg_inline_keyboard = self._bot.sendMessage(chat_id, "Are they OK?", parse_mode="Markdown", reply_markup=markup)
 
             else:
                 self._bot.sendMessage(chat_id, price_format_wrong(), parse_mode="Markdown")
@@ -1115,7 +1123,7 @@ class MessageHandler(telepot.helper.ChatHandler):
                     markup = InlineKeyboardMarkup(inline_keyboard=[
                                  [InlineKeyboardButton(text="OK", callback_data="no_change"), InlineKeyboardButton(text="Change", callback_data="yes_change")],
                              ])
-                    self._msg_inline_keyboard = self._bot.sendMessage(chat_id, "Are them OK?", parse_mode="Markdown", reply_markup=markup)
+                    self._msg_inline_keyboard = self._bot.sendMessage(chat_id, "Are they OK?", parse_mode="Markdown", reply_markup=markup)
 
 
         # CHANGE FILTERING QUESTION
@@ -1202,7 +1210,10 @@ class MessageHandler(telepot.helper.ChatHandler):
                 msg_idf = telepot.message_identifier(self._msg_inline_keyboard)
                 self._bot.editMessageText(msg_idf, sent_analysis_confirmation(), parse_mode="Markdown")
 
-                self._reviews.insert(self.sentiment_results)
+                results_to_mongo = self.convert_sent_results(self.sentiment_results)
+                results_to_mongo["chat_id"] = chat_id
+                results_to_mongo["user_id"] = msg["from"]["id"]
+                self._reviews.insert(results_to_mongo)
 
                 # following process
                 self._chats.modify_aux_state_from_id(chat_id, auxiliar_state.FINISHED)

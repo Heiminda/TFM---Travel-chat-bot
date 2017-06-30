@@ -190,7 +190,7 @@ def ask_review_user():
     s += "Here are a couple of review suggestions that could work:\n\n"
     s += "\t_Everything was fine._\n"
     s += "\t_It worked._\n"
-    s += "\t_Location and cost were terrible, too high._\n"
+    s += "\t_Location is nice. But prices are unaffordable, too high._\n"
     return s
 
 def ask_review_user2():
@@ -199,7 +199,7 @@ def ask_review_user2():
     s += "Here are a couple of review suggestions that could work:\n\n"
     s += "\t_Everything was fine._\n"
     s += "\t_It worked._\n"
-    s += "\t_Location and cost were terrible, too high._\n"
+    s += "\t_Location is nice. But prices are unaffordable, too high._\n"
     return s
 
 def explain_sentiment_results(results):
@@ -212,8 +212,8 @@ def explain_sentiment_results(results):
         else:
             s += "*"+str(topic)+"*" + " : " + "*Negative*"
 
-    s = "Okay, the overall sentiment of the review is *" + results["sentiment"] + "*"
-    s += " with a *%.2f%%* of confidence." % results["confidence"]
+    s += "\n\nThe overall sentiment of the review is *" + results["sentiment"] + "*"
+    s += " with a *%.2f%%* of confidence." % (results["confidence"] * 100.)
     return s
 
 def sent_analysis_confirmation():
